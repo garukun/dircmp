@@ -102,14 +102,50 @@ func scanDir(dirPath string, ignoreDSStore bool) (*DirData, error) {
 }
 
 func CompareDirs(dir1, dir2 string, ignoreDSStore bool, out io.Writer) error {
-	data1, err := scanDir(dir1, ignoreDSStore)
-	if err != nil {
-		return fmt.Errorf("error scanning dir1: %w", err)
+	type scanResult struct {
+		data *DirData
+		err  error
 	}
 
-	data2, err := scanDir(dir2, ignoreDSStore)
-	if err != nil {
-		return fmt.Errorf("error scanning dir2: %w", err)
+	var data1, data2 *DirData
+
+	if shouldScanSequentially(dir1, dir2) {
+		// Same mechanical HDD – read sequentially to avoid disk thrashing.
+		fmt.Printf("Scanning directories sequentially.\n")
+		var err error
+		data1, err = scanDir(dir1, ignoreDSStore)
+		if err != nil {
+			return fmt.Errorf("error scanning dir1: %w", err)
+		}
+		data2, err = scanDir(dir2, ignoreDSStore)
+		if err != nil {
+			return fmt.Errorf("error scanning dir2: %w", err)
+		}
+	} else {
+		// Different drives or SSD – read concurrently for maximum throughput.
+		fmt.Printf("Scanning directories concurrently.\n")
+		ch1 := make(chan scanResult, 1)
+		ch2 := make(chan scanResult, 1)
+
+		go func() {
+			d, e := scanDir(dir1, ignoreDSStore)
+			ch1 <- scanResult{d, e}
+		}()
+		go func() {
+			d, e := scanDir(dir2, ignoreDSStore)
+			ch2 <- scanResult{d, e}
+		}()
+
+		res1 := <-ch1
+		res2 := <-ch2
+
+		if res1.err != nil {
+			return fmt.Errorf("error scanning dir1: %w", res1.err)
+		}
+		if res2.err != nil {
+			return fmt.Errorf("error scanning dir2: %w", res2.err)
+		}
+		data1, data2 = res1.data, res2.data
 	}
 
 	fmt.Fprintf(out, "Comparing:\n Dir1: %s\n Dir2: %s\n\n", dir1, dir2)
