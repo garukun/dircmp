@@ -43,7 +43,7 @@ func TestCompareDirs_Identical(t *testing.T) {
 	createEmptyDir(t, dir2, "empty1")
 
 	var buf bytes.Buffer
-	err := CompareDirs(dir1, dir2, &buf)
+	err := CompareDirs(dir1, dir2, true, &buf)
 	if err != nil {
 		t.Fatalf("CompareDirs failed: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestCompareDirs_Differences(t *testing.T) {
 	createEmptyDir(t, dir2, "add_dir")
 
 	var buf bytes.Buffer
-	err := CompareDirs(dir1, dir2, &buf)
+	err := CompareDirs(dir1, dir2, true, &buf)
 	if err != nil {
 		t.Fatalf("CompareDirs failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestCompareDirs_CopiedFile(t *testing.T) {
 	writeFile(t, dir2, "dst.txt", "copy_content")
 
 	var buf bytes.Buffer
-	err := CompareDirs(dir1, dir2, &buf)
+	err := CompareDirs(dir1, dir2, true, &buf)
 	if err != nil {
 		t.Fatalf("CompareDirs failed: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestCompareDirs_TestData1(t *testing.T) {
 	dir2 := filepath.Join("testdata", "test1", "dirB")
 
 	var buf bytes.Buffer
-	err := CompareDirs(dir1, dir2, &buf)
+	err := CompareDirs(dir1, dir2, true, &buf)
 	if err != nil {
 		t.Fatalf("CompareDirs failed: %v", err)
 	}
@@ -201,5 +201,52 @@ func TestCompareDirs_TestData1(t *testing.T) {
 	}
 	if !strings.Contains(out, "=== Added Empty Directories (Only in Dir2) ===") || !strings.Contains(out, "- additionalEmptyDirB") {
 		t.Error("Expected 'additionalEmptyDirB' to be detected as an added empty directory")
+	}
+}
+
+func TestCompareDirs_IgnoreDSStore(t *testing.T) {
+	dir1 := filepath.Join("testdata", "ignore_ds_store", "dirA")
+	dir2 := filepath.Join("testdata", "ignore_ds_store", "dirB")
+
+	// 1. With ignoreDSStore = true
+	{
+		var buf bytes.Buffer
+		err := CompareDirs(dir1, dir2, true, &buf)
+		if err != nil {
+			t.Fatalf("CompareDirs failed: %v", err)
+		}
+
+		out := buf.String()
+		t.Logf("Output with ignoreDSStore=true:\n%s", out)
+
+		// Since .DS_Store is completely ignored, and emptyDir2 (which contains only .DS_Store)
+		// is correctly considered empty (matching the emptyDir2 in dirB), there should be
+		// no reported differences at all.
+		if strings.Contains(out, "=== Modified") || strings.Contains(out, "=== Deleted") || strings.Contains(out, "=== Added") || strings.Contains(out, "=== Moved") {
+			t.Errorf("Expected no differences with .DS_Store ignored, but got:\n%s", out)
+		}
+	}
+
+	// 2. With ignoreDSStore = false
+	{
+		var buf bytes.Buffer
+		err := CompareDirs(dir1, dir2, false, &buf)
+		if err != nil {
+			t.Fatalf("CompareDirs failed: %v", err)
+		}
+
+		out := buf.String()
+		t.Logf("Output with ignoreDSStore=false:\n%s", out)
+
+		// Since .DS_Store is NOT ignored:
+		// - sub1/.DS_Store in dirA is missing in dirB, so it should be reported as deleted.
+		// - emptyDir2 in dirA contains .DS_Store and is NOT empty, but emptyDir2 in dirB is empty,
+		//   so emptyDir2 is reported as added in dir2.
+		if !strings.Contains(out, "=== Deleted Files (Only in Dir1) ===") || !strings.Contains(out, ".DS_Store") {
+			t.Error("Expected .DS_Store to be reported as deleted")
+		}
+		if !strings.Contains(out, "=== Added Empty Directories (Only in Dir2) ===") || !strings.Contains(out, "emptyDir2") {
+			t.Error("Expected emptyDir2 to be reported as added empty directory")
+		}
 	}
 }

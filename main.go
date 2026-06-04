@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -39,7 +40,7 @@ func hashFile(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func scanDir(dirPath string) (*DirData, error) {
+func scanDir(dirPath string, ignoreDSStore bool) (*DirData, error) {
 	data := NewDirData()
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -50,11 +51,15 @@ func scanDir(dirPath string) (*DirData, error) {
 			return nil
 		}
 
+		if ignoreDSStore && filepath.Base(path) == ".DS_Store" {
+			return nil
+		}
+
 		relPath, err := filepath.Rel(dirPath, path)
 		if err != nil {
 			return err
 		}
-		
+
 		// Normalize separators for cross-platform comparison
 		relPath = filepath.ToSlash(relPath)
 
@@ -64,8 +69,18 @@ func scanDir(dirPath string) (*DirData, error) {
 				return err
 			}
 			defer f.Close()
-			_, err = f.Readdirnames(1)
-			if err == io.EOF {
+			names, err := f.Readdirnames(-1)
+			if err != nil && err != io.EOF {
+				return err
+			}
+			isEmpty := true
+			for _, name := range names {
+				if !ignoreDSStore || name != ".DS_Store" {
+					isEmpty = false
+					break
+				}
+			}
+			if isEmpty {
 				data.EmptyDirs[relPath] = true
 			}
 			return nil
@@ -86,13 +101,13 @@ func scanDir(dirPath string) (*DirData, error) {
 	return data, err
 }
 
-func CompareDirs(dir1, dir2 string, out io.Writer) error {
-	data1, err := scanDir(dir1)
+func CompareDirs(dir1, dir2 string, ignoreDSStore bool, out io.Writer) error {
+	data1, err := scanDir(dir1, ignoreDSStore)
 	if err != nil {
 		return fmt.Errorf("error scanning dir1: %w", err)
 	}
 
-	data2, err := scanDir(dir2)
+	data2, err := scanDir(dir2, ignoreDSStore)
 	if err != nil {
 		return fmt.Errorf("error scanning dir2: %w", err)
 	}
@@ -132,16 +147,24 @@ func CompareDirs(dir1, dir2 string, out io.Writer) error {
 		paths2 := data2.FilesByHash[hash]
 
 		m1 := make(map[string]bool)
-		for _, p := range paths1 { m1[p] = true }
+		for _, p := range paths1 {
+			m1[p] = true
+		}
 		m2 := make(map[string]bool)
-		for _, p := range paths2 { m2[p] = true }
+		for _, p := range paths2 {
+			m2[p] = true
+		}
 
 		var p1Only, p2Only []string
 		for _, p := range paths1 {
-			if !m2[p] { p1Only = append(p1Only, p) }
+			if !m2[p] {
+				p1Only = append(p1Only, p)
+			}
 		}
 		for _, p := range paths2 {
-			if !m1[p] { p2Only = append(p2Only, p) }
+			if !m1[p] {
+				p2Only = append(p2Only, p)
+			}
 		}
 
 		if len(p1Only) > 0 || len(p2Only) > 0 {
@@ -229,14 +252,19 @@ func CompareDirs(dir1, dir2 string, out io.Writer) error {
 }
 
 func runMain() int {
-	if len(os.Args) != 4 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <dir1> <dir2> <output_file>\n", os.Args[0])
+	ignoreDSStore := flag.Bool("ignore-ds-store", false, "Ignore .DS_Store files during comparison")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) != 3 {
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] <dir1> <dir2> <output_file>\n", os.Args[0])
+		flag.PrintDefaults()
 		return 1
 	}
 
-	dir1 := os.Args[1]
-	dir2 := os.Args[2]
-	outFile := os.Args[3]
+	dir1 := args[0]
+	dir2 := args[1]
+	outFile := args[2]
 
 	out, err := os.Create(outFile)
 	if err != nil {
@@ -245,7 +273,7 @@ func runMain() int {
 	}
 	defer out.Close()
 
-	if err := CompareDirs(dir1, dir2, out); err != nil {
+	if err := CompareDirs(dir1, dir2, *ignoreDSStore, out); err != nil {
 		fmt.Fprintf(os.Stderr, "Error comparing directories: %v\n", err)
 		return 1
 	}

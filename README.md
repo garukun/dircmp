@@ -35,13 +35,21 @@ cd dircmp
 Run the program by specifying the two directories to compare and the path to the output report file:
 
 ```bash
-go run main.go <dir1> <dir2> <output_report_file>
+go run main.go [flags] <dir1> <dir2> <output_report_file>
 ```
+
+### Flags
+
+* `-ignore-ds-store` (default: `false`): Ignores macOS `.DS_Store` files and considers directories containing only `.DS_Store` files as empty. Set to `true` to exclude `.DS_Store` files from the comparison.
 
 ### Example
 
 ```bash
+# Compare directories including .DS_Store files (default)
 go run main.go testdata/test1/dirA testdata/test1/dirB out/report.txt
+
+# Compare directories while ignoring .DS_Store files
+go run main.go -ignore-ds-store=true testdata/test1/dirA testdata/test1/dirB out/report.txt
 ```
 
 ## Running Tests

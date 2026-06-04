@@ -1,2 +1,5 @@
 out/
 .DS_Store
+
+# For specific test cases
+!testdata/igore_ds_store/.DS_Store
