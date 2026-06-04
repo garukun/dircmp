@@ -1,0 +1,10 @@
+this is test content.
+
+# What the Program Does
+This program compares two directory structures (dir1 and dir2) and writes a report detailing the differences to a specified output file. It categorizes changes into five distinct groups:
+
+* Modified Files: Files that exist in both directories at the same relative path but have different contents.
+Moved / Renamed / Copied Files: Files that have identical contents (based on their hashes) but exist at different paths.
+Deleted Files: Files that exist in dir1 but do not exist in dir2 by path or content hash.
+Added Files: Files that exist in dir2 but do not exist in dir1 by path or content hash.
+Empty Directories: Tracks empty directories that were added or deleted.

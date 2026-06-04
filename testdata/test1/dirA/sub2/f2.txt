@@ -1,0 +1,19 @@
+this file is in a sub dir.
+
+# Purpose
+Create two directories, dir1 and dir2. dir1 contains a file f1.txt.
+
+dir2 has two files:
+  - f1.txt (identical to dir1's f1.txt)
+  - f2.txt (same content as f1.txt but different name)
+
+# Expected Outcome
+The program should identify:
+  - One "Moved / Renamed / Copied" file (f1.txt to f2.txt)
+  - No modified files
+  - No added/deleted files
+
+# Files
+dir1/f1.txt
+dir2/f1.txt
+dir2/f2.txt
