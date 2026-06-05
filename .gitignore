@@ -1,5 +1,6 @@
 out/
 .DS_Store
+.vscode/settings.json
 
 # For specific test cases
 !testdata/igore_ds_store/.DS_Store

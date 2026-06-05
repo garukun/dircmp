@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,44 @@ func TestCompareDirs_Identical(t *testing.T) {
 	out := buf.String()
 	if strings.Contains(out, "=== Modified") || strings.Contains(out, "=== Deleted") || strings.Contains(out, "=== Added") || strings.Contains(out, "=== Moved") {
 		t.Errorf("Expected no differences, got:\n%s", out)
+	}
+}
+
+func TestCompareDirs_SameDirectoryScannedOnce(t *testing.T) {
+	dir, _ := createTestEnv(t)
+	writeFile(t, dir, "file1.txt", "content1")
+	createEmptyDir(t, dir, "empty1")
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = w
+	defer func() {
+		w.Close()
+		os.Stdout = oldStdout
+	}()
+
+	var buf bytes.Buffer
+	err = CompareDirs(dir, dir, true, &buf)
+	w.Close()
+	if err != nil {
+		t.Fatalf("CompareDirs failed: %v", err)
+	}
+
+	stdoutBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("Failed to read stdout: %v", err)
+	}
+
+	if !strings.Contains(string(stdoutBytes), "Scanning the same directory once") {
+		t.Errorf("Expected same-directory scan optimization message, got: %s", string(stdoutBytes))
+	}
+
+	out := buf.String()
+	if strings.Contains(out, "=== Modified") || strings.Contains(out, "=== Deleted") || strings.Contains(out, "=== Added") || strings.Contains(out, "=== Moved") {
+		t.Errorf("Expected no differences for identical directory, got:\n%s", out)
 	}
 }
 

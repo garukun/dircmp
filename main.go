@@ -101,6 +101,23 @@ func scanDir(dirPath string, ignoreDSStore bool) (*DirData, error) {
 	return data, err
 }
 
+func canonicalDirPath(dir string) (string, error) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(absDir)
+}
+
+func sameDirectory(dir1, dir2 string) bool {
+	path1, err1 := canonicalDirPath(dir1)
+	path2, err2 := canonicalDirPath(dir2)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(dir1) == filepath.Clean(dir2)
+	}
+	return path1 == path2
+}
+
 func CompareDirs(dir1, dir2 string, ignoreDSStore bool, out io.Writer) error {
 	type scanResult struct {
 		data *DirData
@@ -109,7 +126,14 @@ func CompareDirs(dir1, dir2 string, ignoreDSStore bool, out io.Writer) error {
 
 	var data1, data2 *DirData
 
-	if shouldScanSequentially(dir1, dir2) {
+	if sameDirectory(dir1, dir2) {
+		fmt.Printf("Scanning the same directory once.\n")
+		d, err := scanDir(dir1, ignoreDSStore)
+		if err != nil {
+			return fmt.Errorf("error scanning dir1: %w", err)
+		}
+		data1, data2 = d, d
+	} else if shouldScanSequentially(dir1, dir2) {
 		// Same mechanical HDD – read sequentially to avoid disk thrashing.
 		fmt.Printf("Scanning directories sequentially.\n")
 		var err error
