@@ -277,7 +277,34 @@ func CompareDirs(dir1, dir2 string, ignoreDSStore bool, out io.Writer) error {
 		fmt.Fprintln(out)
 	}
 
-	// 5. Empty Directories
+	// 5. Duplicate files within each directory
+	printDuplicateFiles := func(label string, filesByHash map[string][]string) {
+		var duplicateHashes []string
+		for hash, paths := range filesByHash {
+			if len(paths) > 1 {
+				duplicateHashes = append(duplicateHashes, hash)
+			}
+		}
+		sort.Strings(duplicateHashes)
+		if len(duplicateHashes) == 0 {
+			return
+		}
+		fmt.Fprintf(out, "=== Duplicate Files in %s ===\n", label)
+		for _, hash := range duplicateHashes {
+			paths := append([]string(nil), filesByHash[hash]...)
+			sort.Strings(paths)
+			fmt.Fprintf(out, "Content Hash: %s\n", hash[:8])
+			for _, p := range paths {
+				fmt.Fprintf(out, "- %s\n", p)
+			}
+			fmt.Fprintln(out)
+		}
+	}
+
+	printDuplicateFiles("Dir1", data1.FilesByHash)
+	printDuplicateFiles("Dir2", data2.FilesByHash)
+
+	// 6. Empty Directories
 	var deletedDirs []string
 	for p := range data1.EmptyDirs {
 		if !data2.EmptyDirs[p] {

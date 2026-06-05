@@ -93,6 +93,29 @@ func TestCompareDirs_SameDirectoryScannedOnce(t *testing.T) {
 	}
 }
 
+func TestCompareDirs_DuplicateFilesWithinEachDirectory(t *testing.T) {
+	dir1, dir2 := createTestEnv(t)
+
+	writeFile(t, dir1, "dup1a.txt", "duplicateA")
+	writeFile(t, dir1, "dup1b.txt", "duplicateA")
+	writeFile(t, dir2, "dup2a.txt", "duplicateB")
+	writeFile(t, dir2, "dup2b.txt", "duplicateB")
+
+	var buf bytes.Buffer
+	err := CompareDirs(dir1, dir2, true, &buf)
+	if err != nil {
+		t.Fatalf("CompareDirs failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "=== Duplicate Files in Dir1 ===") || !strings.Contains(out, "dup1a.txt") || !strings.Contains(out, "dup1b.txt") {
+		t.Errorf("Expected duplicate files in Dir1 to be reported, got:\n%s", out)
+	}
+	if !strings.Contains(out, "=== Duplicate Files in Dir2 ===") || !strings.Contains(out, "dup2a.txt") || !strings.Contains(out, "dup2b.txt") {
+		t.Errorf("Expected duplicate files in Dir2 to be reported, got:\n%s", out)
+	}
+}
+
 func TestCompareDirs_Differences(t *testing.T) {
 	dir1, dir2 := createTestEnv(t)
 
@@ -216,9 +239,9 @@ func TestCompareDirs_TestData1(t *testing.T) {
 
 	// Case 5: Testing duplicate content in three different locations (present in both directories identically)
 	// target: sub1/duplicate_in_three.txt, sub2/duplicate_in_three.txt, sub3/duplicate_in_three.txt
-	// These are identical across both directories, so they should NOT show up as differences.
-	if strings.Contains(out, "duplicate_in_three.txt") {
-		t.Error("Files with identical content and path in 3 locations should not be reported as differences")
+	// These are identical across both directories, so they should be reported as duplicate files rather than as added/deleted/modified differences.
+	if !strings.Contains(out, "=== Duplicate Files in Dir1 ===") || !strings.Contains(out, "=== Duplicate Files in Dir2 ===") {
+		t.Error("Expected duplicate files to be reported for identical repeated content in each directory")
 	}
 
 	// Case 6: Happy-path test cases in subdirectories and recursive subdirectories that are identical
